@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Lode.Plugins</RootNamespace>
+    <Description>Contract and runner for Lode plugins (contract lode.plugin/1).</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The sandbox plugins apply to themselves, shared with Lode Desktop (LodeCommon, git submodule in common/). -->
+    <ProjectReference Include="../../common/src/Lode.Sandbox/Lode.Sandbox.csproj" />
+  </ItemGroup>
+</Project>

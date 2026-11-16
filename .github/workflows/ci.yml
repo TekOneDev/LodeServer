@@ -12,8 +12,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Check out common/ (TekOneDev/SiloCommon)
-        # SiloCommon is private: SILOCOMMON_TOKEN is a read-only token for that repo only,
+      - name: Check out common/ (TekOneDev/LodeCommon)
+        # LodeCommon is private: SILOCOMMON_TOKEN is a read-only token for that repo only,
         # so it is used just for the submodule, not for this repository.
         shell: bash
         env:
@@ -25,13 +25,13 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - name: Test
-        run: dotnet test tests/Silo.Tests -c Release --nologo
+        run: dotnet test tests/Lode.Tests -c Release --nologo
       - name: Build the server and plugin host
         run: |
-          dotnet build src/Silo.Server -c Release --nologo
-          dotnet build src/Silo.PluginHost -c Release --nologo
+          dotnet build src/Lode.Server -c Release --nologo
+          dotnet build src/Lode.PluginHost -c Release --nologo
       - name: Sandbox self-test (plugins cannot read the index, write, or start programs)
-        run: dotnet src/Silo.PluginHost/bin/Release/net10.0/Silo.PluginHost.dll --sandbox-selftest
+        run: dotnet src/Lode.PluginHost/bin/Release/net10.0/Lode.PluginHost.dll --sandbox-selftest
       - name: Installer scripts parse
         shell: pwsh
         run: |
@@ -45,7 +45,7 @@ jobs:
       - name: Packages with known vulnerabilities
         shell: bash
         run: |
-          for p in src/Silo.Server src/Silo.PluginHost; do
+          for p in src/Lode.Server src/Lode.PluginHost; do
             out=$(dotnet list "$p" package --vulnerable --include-transitive)
             echo "$out"
             if echo "$out" | grep -q "has the following vulnerable packages"; then exit 1; fi

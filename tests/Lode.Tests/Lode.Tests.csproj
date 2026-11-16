@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Lode.Server\Lode.Server.csproj" />
+    <ProjectReference Include="..\..\src\Lode.Plugin.Office\Lode.Plugin.Office.csproj" />
+    <ProjectReference Include="..\..\src\Lode.Plugin.Datamine\Lode.Plugin.Datamine.csproj" />
+    <ProjectReference Include="..\..\src\Lode.Plugin.Readers\Lode.Plugin.Readers.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="data\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
