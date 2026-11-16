@@ -78,11 +78,8 @@ const I = {
 };
 
 const LOGO = (size) => `<a class="logo" href="/" data-nav>
-  <svg width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="var(--ink)"/>
-  <path d="M10 22c8-5 15 3 22-1s14-6 22-1v6c-8-5-15-3-22 1s-14-4-22 1z" fill="#c99a2e"/>
-  <path d="M10 32c8-5 15 3 22-1s14-6 22-1v6c-8-5-15-3-22 1s-14-4-22 1z" fill="#b5622a"/>
-  <path d="M10 42c8-5 15 3 22-1s14-6 22-1v6c-8-5-15-3-22 1s-14-4-22 1z" fill="#2f7a78"/></svg>
-  <span class="word">Sil<b>o</b></span></a>`;
+  <svg width="${size}" height="${size}" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="var(--ink)"/><circle cx="28" cy="28" r="14" fill="none" stroke="#F6F4EF" stroke-width="6"/><path d="M39 39l11 11" stroke="#F6F4EF" stroke-width="6.5" stroke-linecap="round"/><path d="M28 20l6.5 8-6.5 8.5-6.5-8.5z" fill="#E0A526"/></svg>
+  <span class="word">L<b>o</b>de</span></a>`;
 
 // ---------------------------------------------------------------- domain look-ups
 // Commodities shown as element-style tiles. Colours are muted mineral tones.
