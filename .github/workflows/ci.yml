@@ -19,7 +19,7 @@ jobs:
         env:
           TOKEN: ${{ secrets.SILOCOMMON_TOKEN }}
         run: |
-          git -c url."https://x-access-token:${TOKEN}@github.com/TekOneDev/SiloCommon".insteadOf=https://github.com/TekOneDev/SiloCommon \
+          git -c url."https://x-access-token:${TOKEN}@github.com/TekOneDev/LodeCommon".insteadOf=https://github.com/TekOneDev/LodeCommon \
               submodule update --init --depth 1 common
       - uses: actions/setup-dotnet@v4
         with:
