@@ -154,7 +154,7 @@ Logs are in `C:\ProgramData\LodeServer\logs`.
 
 ## Build
 
-The plugin sandbox (and next, the file readers) is shared with Lode Desktop and lives in [LodeCommon](https://github.com/TekOneDev/SiloCommon), a git submodule in `common/`. Clone with `git clone --recursive`, or run `git submodule update --init` once.
+The plugin sandbox (and next, the file readers) is shared with Lode Desktop and lives in [LodeCommon](https://github.com/TekOneDev/LodeCommon), a git submodule in `common/`. Clone with `git clone --recursive`, or run `git submodule update --init` once.
 
 Run `./build.sh` with the .NET 10 SDK. It runs the tests, publishes the server and plugin host for win-x64 (self-contained), writes the plugin manifests, and zips the package into `dist/`.
 
