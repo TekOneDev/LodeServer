@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Lode.PluginHost</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Lode.Plugin.Files/Lode.Plugin.Files.csproj" />
+    <ProjectReference Include="../Lode.Plugin.Pdf/Lode.Plugin.Pdf.csproj" />
+    <ProjectReference Include="../Lode.Plugin.Office/Lode.Plugin.Office.csproj" />
+    <ProjectReference Include="../Lode.Plugin.Image/Lode.Plugin.Image.csproj" />
+    <ProjectReference Include="../Lode.Plugin.Rocscience/Lode.Plugin.Rocscience.csproj" />
+    <ProjectReference Include="../Lode.Plugin.Datamine/Lode.Plugin.Datamine.csproj" />
+    <ProjectReference Include="../Lode.Plugin.Geo/Lode.Plugin.Geo.csproj" />
+    <ProjectReference Include="../Lode.Plugin.Readers/Lode.Plugin.Readers.csproj" />
+  </ItemGroup>
+</Project>

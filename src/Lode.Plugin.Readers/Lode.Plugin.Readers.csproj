@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Filter plugin over Lode Desktop's readers (LodeCommon Lode.Readers): one copy of the code for both products. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Lode.Plugin.Sdk/Lode.Plugin.Sdk.csproj" />
+    <ProjectReference Include="../../common/src/Lode.Readers/Lode.Readers.csproj" />
+  </ItemGroup>
+</Project>
