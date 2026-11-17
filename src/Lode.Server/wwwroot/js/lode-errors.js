@@ -370,6 +370,16 @@ window.LodeErrorTable = {
     "t": "OCR failed on a file",
     "s": "warning"
   },
+  "LODE-SRV-OCR-0008": {
+    "m": "OCR can't read {type} images on this server, so this file is found by its name, folder and details only.",
+    "t": "Windows can't open this kind of image for OCR",
+    "s": "info"
+  },
+  "LODE-SRV-OCR-0009": {
+    "m": "OCR could not open this {type} image: {detail}",
+    "t": "An image could not be opened for OCR",
+    "s": "warning"
+  },
   "LODE-SRV-PLUG-0001": {
     "m": "The plugin {plugin} could not be started.",
     "t": "A plugin couldn't be started",

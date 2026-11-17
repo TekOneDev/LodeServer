@@ -4,7 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <Version>0.2.2</Version>
+    <Version>0.2.3</Version>
     <Company>Lode</Company>
     <Product>Lode Server</Product>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>

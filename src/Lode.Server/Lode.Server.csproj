@@ -21,6 +21,8 @@
     <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.14" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.15" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.15" />
+    <!-- WebP (and fallback) image decoding for OCR, in-process (MIT). The Windows native library comes with SkiaSharp. -->
+    <PackageReference Include="SkiaSharp" Version="4.156.1" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Lode.Plugin.Sdk/Lode.Plugin.Sdk.csproj" />
