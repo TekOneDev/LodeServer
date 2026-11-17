@@ -79,7 +79,7 @@ To uninstall, use **Settings > Apps > Lode Server (beta)**, or run `uninstall.ps
   1. Coordinates written in the text: decimal or DMS, map-frame graticules, MGA grids with a zone, and 1:250 000 map sheet codes (approximate).
   2. Coordinates in data files.
   3. The `lode.enrich.au-geo` plugin, which looks up WAMEX and GSQ report footprints online. These win over the others.
-- **OCR** uses the Windows engine (no install needed). It runs in worker processes, and sideways scans are retried after turning them.
+- **OCR** uses the Windows engine (no install needed). It runs in worker processes, and sideways scans are retried after turning them. WebP images are decoded by Lode itself (SkiaSharp, in the worker) because Windows' WebP codec is a per-user Store app the service account never has (0.2.3); Lode also decodes JPEG, PNG, GIF and BMP if Windows has no decoder for them. HEIC photos need a codec the service can't use and report `LODE-SRV-OCR-0008`.
 - **Sandbox (0.1.5).** Plugins and OCR workers open untrusted files, so each runs in a job (memory cap, no other programs, killed with the service) with all privileges removed. Plugins also run at low integrity: they can read files but cannot write anywhere except a scratch folder, and cannot read the server's catalog, index, settings or logs. A plugin that cannot work like this says `"sandbox": false` in its manifest; the admin page shows each plugin's sandbox. OCR workers run at low integrity only with `"ocrLowIntegrity": true`, until that has been checked with Windows OCR on a real server. `Lode.PluginHost.exe --sandbox-selftest` checks the sandbox on any machine.
 - **Permissions**
   - Folder sources can use NTFS permissions (`access: ntfs`) or be public.

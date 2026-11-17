@@ -90,9 +90,10 @@ public static class OcrEngine
         int rotated = 0;
         if (job.Image)
         {
-            var file = Windows.Storage.StorageFile.GetFileFromPathAsync(job.Path).AsTask().GetAwaiter().GetResult();
-            using var stream = file.OpenAsync(Windows.Storage.FileAccessMode.Read).AsTask().GetAwaiter().GetResult();
-            var decoder = Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(stream).AsTask().GetAwaiter().GetResult();
+            Windows.Graphics.Imaging.BitmapDecoder decoder; IDisposable held;
+            try { decoder = OpenImage(job.Path, out held); }
+            catch (LodeException e) { reply.Error = Fail.Text(e.Error, e.Args); return reply; }
+            using var stream = held;
             uint frames = Math.Min(decoder.FrameCount, 500u);   // multi-page TIFF scans
             for (uint f = 0; f < frames; f++)
             {
@@ -124,6 +125,60 @@ public static class OcrEngine
         reply.Rotated = rotated;
         return reply;
     }
+
+    // WINCODEC_ERR_* results from BitmapDecoder.CreateAsync.
+    const int ComponentNotFound = unchecked((int)0x88982F50);
+    static readonly int[] BadImage = [unchecked((int)0x88982F60), unchecked((int)0x88982F61), unchecked((int)0x88982F62), unchecked((int)0x88982F72), unchecked((int)0x88982F8C), unchecked((int)0x88982F8D)];
+
+    /// <summary>
+    /// A decoder for an image file. WebP is decoded by Lode itself (<see cref="ImageDecode"/>): Windows has no built-in
+    /// WebP decoder, and the Store one is installed per user, so the service account never has it. Other formats go to
+    /// Windows; if Windows has no decoder for one Lode knows, Lode decodes it. Anything else raises a coded error
+    /// (LODE-SRV-OCR-0008 no decoder, LODE-SRV-OCR-0009 damaged) instead of a bare COMException.
+    /// <paramref name="held"/> is the stream the decoder reads; dispose it when done.
+    /// </summary>
+    static Windows.Graphics.Imaging.BitmapDecoder OpenImage(string path, out IDisposable held)
+    {
+        int max = (int)Windows.Media.Ocr.OcrEngine.MaxImageDimension;
+        if (ImageDecode.DecodeHere(path)) return FromBmp(ImageDecode.ToBmp(path, max), out held);
+        Windows.Storage.Streams.IRandomAccessStream? stream = null;
+        try
+        {
+            var file = Windows.Storage.StorageFile.GetFileFromPathAsync(path).AsTask().GetAwaiter().GetResult();
+            stream = file.OpenAsync(Windows.Storage.FileAccessMode.Read).AsTask().GetAwaiter().GetResult();
+            var d = Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(stream).AsTask().GetAwaiter().GetResult();
+            held = stream;
+            return d;
+        }
+        catch (Exception e) when (e.HResult == ComponentNotFound)
+        {
+            stream?.Dispose();
+            if (!ImageDecode.CanRead(path)) throw ImageDecode.NoDecoder(path);
+            return FromBmp(ImageDecode.ToBmp(path, max), out held);
+        }
+        catch (Exception e) when (BadImage.Contains(e.HResult))
+        {
+            stream?.Dispose();
+            // Windows says the file is damaged; Lode's decoder is more forgiving with some files, so try it once.
+            if (ImageDecode.CanRead(path)) return FromBmp(ImageDecode.ToBmp(path, max), out held);
+            throw ImageDecode.Unreadable(path, $"Windows says the picture data is damaged (0x{e.HResult:X8})", e);
+        }
+    }
+
+    static Windows.Graphics.Imaging.BitmapDecoder FromBmp(byte[] bmp, out IDisposable held)
+    {
+        var mem = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+        using (var w = new Windows.Storage.Streams.DataWriter(mem.GetOutputStreamAt(0)))
+        {
+            w.WriteBytes(bmp);
+            w.StoreAsync().AsTask().GetAwaiter().GetResult();
+            w.FlushAsync().AsTask().GetAwaiter().GetResult();
+            w.DetachStream();
+        }
+        mem.Seek(0);
+        held = mem;
+        return Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(Windows.Graphics.Imaging.BitmapDecoder.BmpDecoderId, mem).AsTask().GetAwaiter().GetResult();
+    }
 #else
     public static string? Check() => "only available in the Windows build";
     public static string Language => "";
@@ -146,6 +201,14 @@ public static class OcrEngine
         return (double)good / toks.Length;
     }
 
+    /// <summary>"COMException 0x88982F50: message" - the HRESULT says more than the type name alone.</summary>
+    public static string Describe(Exception e)
+    {
+        var msg = e.Message.Trim();
+        return e is System.Runtime.InteropServices.COMException
+            ? $"{e.GetType().Name} 0x{e.HResult:X8}: {msg}" : $"{e.GetType().Name}: {msg}";
+    }
+
     /// <summary>Worker process main: one JSON job per line in, one JSON reply per line out.</summary>
     public static int WorkerMain()
     {
@@ -160,7 +223,8 @@ public static class OcrEngine
         {
             OcrReply r;
             try { r = Run(JsonSerializer.Deserialize<OcrJob>(line, Lode.Plugins.Contract.Json)!); }
-            catch (Exception e) { r = new OcrReply { Error = e.GetType().Name + ": " + e.Message }; }
+            catch (LodeException e) { r = new OcrReply { Error = Fail.Text(e.Error, e.Args) }; }
+            catch (Exception e) { r = new OcrReply { Error = Describe(e) }; }
             r.Isolation = isolation; isolation = null;
             stdout.WriteLine(JsonSerializer.Serialize(r, Lode.Plugins.Contract.Json));
         }
