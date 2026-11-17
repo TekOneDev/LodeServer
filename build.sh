@@ -16,6 +16,8 @@ dotnet publish src/Lode.PluginHost -c Release -r win-x64 --self-contained -o "$P
 dotnet run --project src/Lode.PluginHost -c Release -- --manifests "$PKG/App/plugins"
 rm -f "$PKG"/App/*.pdb
 cp installer/* "$PKG/"
+# The installer shows and registers the version from Directory.Build.props.
+sed -i "s/^\$Version = '[^']*'.*/\$Version = '$VER'/" "$PKG/install.ps1"
 cp README.md "$PKG/README.md"
 (cd "$OUT" && rm -f "Lode-Server-$VER-win-x64.zip" && zip -qr9 "Lode-Server-$VER-win-x64.zip" "Lode-Server-$VER-win-x64")
 git archive --format=zip -o "$OUT/Lode-Server-$VER-source.zip" HEAD 2>/dev/null || true
