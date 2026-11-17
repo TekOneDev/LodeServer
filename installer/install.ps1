@@ -23,7 +23,7 @@ $Data = Join-Path $env:ProgramData 'LodeServer'
 $ServiceName = 'LodeServer'
 $Port = 47820
 $HttpsPort = 47821
-$Version = '0.1.6'
+$Version = '0.2.1'   # build.sh writes the real version here
 
 function Step($text) { Write-Host "  - $text" -ForegroundColor Cyan }
 
@@ -53,6 +53,45 @@ public static class LodeLsa {
     $sid.GetBinaryForm($bytes, 0)
     $rc = [LodeLsa]::Grant($bytes, 'SeServiceLogonRight')
     if ($rc -ne 0) { throw "Could not give $name the right to log on as a service (error $rc). (LODE-SRV-INST-0003)" }
+}
+
+# Sets the account a service runs as through the service manager itself (ChangeServiceConfig), the way sc.exe and
+# services.msc do. 0.2.1: Win32_Service.Change refused NT SERVICE\LodeServer with 22 ("invalid account") on some Windows builds.
+function Set-ServiceAccount([string]$service, [string]$account, [string]$password) {
+    if (-not ('LodeScm' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System; using System.Runtime.InteropServices;
+public static class LodeScm {
+  [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)] static extern IntPtr OpenSCManagerW(string m, string d, uint a);
+  [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)] static extern IntPtr OpenServiceW(IntPtr h, string n, uint a);
+  [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)] static extern bool ChangeServiceConfigW(IntPtr s, uint type, uint start, uint err,
+      string bin, string group, IntPtr tag, string deps, string account, string password, string display);
+  [DllImport("advapi32.dll")] static extern bool CloseServiceHandle(IntPtr h);
+  public static int SetAccount(string service, string account, string password) {
+    const uint NoChange = 0xFFFFFFFF;
+    IntPtr m = OpenSCManagerW(null, null, 0x0001);
+    if (m == IntPtr.Zero) return Marshal.GetLastWin32Error();
+    try {
+      IntPtr s = OpenServiceW(m, service, 0x0002 | 0x0001);
+      if (s == IntPtr.Zero) return Marshal.GetLastWin32Error();
+      try { return ChangeServiceConfigW(s, NoChange, NoChange, NoChange, null, null, IntPtr.Zero, null, account, password, null) ? 0 : Marshal.GetLastWin32Error(); }
+      finally { CloseServiceHandle(s); }
+    } finally { CloseServiceHandle(m); }
+  }
+}
+'@
+    }
+    $rc = [LodeScm]::SetAccount($service, $account, $password)
+    if ($rc -ne 0) {
+        $why = (New-Object ComponentModel.Win32Exception($rc)).Message
+        throw "Could not set the service account to $account (Windows answered error ${rc}: $why). (LODE-SRV-INST-0009)"
+    }
+    # Read it back: the service manager keeps it in the service's registry key.
+    $now = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$service" -Name ObjectName -ErrorAction SilentlyContinue).ObjectName
+    $want = if ($account -eq 'LocalSystem') { 'LocalSystem' } else { $account }
+    if ($now -ine $want -and -not ($want -eq 'LocalSystem' -and $now -ieq '.\LocalSystem')) {
+        throw "Could not set the service account to $account (Windows answered: the service still runs as $now). (LODE-SRV-INST-0009)"
+    }
 }
 
 # Read access for the service account to a local folder (shares are set on the file server).
@@ -112,6 +151,23 @@ try {
         Start-Sleep -Milliseconds 500
     }
 
+    # 0.2.1: Silo Server was renamed Lode Server. Its service still holds port 47820, so the old copy is removed here.
+    # Its index is not reused (Lode builds a new one); its settings are carried over below on a first install.
+    $oldData = Join-Path $env:ProgramData 'SiloServer'
+    if (Get-Service 'SiloServer' -ErrorAction SilentlyContinue) {
+        Step 'Removing Silo Server (Lode Server replaces it)'
+        Stop-Service 'SiloServer' -Force -ErrorAction SilentlyContinue
+        for ($i = 0; $i -lt 120 -and (Get-Process -Name 'SiloServer' -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 500 }
+        Get-Process -Name 'SiloServer', 'Silo.PluginHost' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        sc.exe delete SiloServer | Out-Null
+        Get-NetFirewallRule -DisplayName 'Silo Server*' -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+        $oldMenu = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'
+        Remove-Item (Join-Path $oldMenu 'Silo Search.url'), (Join-Path $oldMenu 'Silo Server status.url') -ErrorAction SilentlyContinue
+        Remove-Item 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\SiloServer' -Recurse -ErrorAction SilentlyContinue
+        Remove-Item (Join-Path $env:ProgramFiles 'Silo Server') -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path $oldData) { Write-Host "    Its old index and settings stay in $oldData. Delete that folder once Lode Server has finished indexing." }
+    }
+
     Step "Copying files to $Dest"
     New-Item -ItemType Directory -Force -Path $Dest | Out-Null
     $target = Join-Path $Dest 'App'
@@ -125,6 +181,21 @@ try {
     Step 'Writing settings'
     $settingsPath = Join-Path $Data 'settings.json'
     # First install: the server writes its defaults, then this adjusts them.
+    $oldSettings = Join-Path $oldData 'settings.json'
+    $imported = Join-Path $Data 'silo-settings-imported'
+    # Lode Server has never run here (no catalog yet; 0.2.0 could stop before the first start) and Silo Server settings exist:
+    # keep the Silo sources, addresses and choices, once.
+    if ((Test-Path $oldSettings) -and -not (Test-Path $imported) -and -not (Test-Path (Join-Path $Data 'catalog.db'))) {
+        Remove-Item $settingsPath, "$settingsPath.bak" -ErrorAction SilentlyContinue
+        # Plugin ids were renamed (silo.source.folder is now lode.source.folder); its own data folder is not reused.
+        try {
+            $old = (Get-Content $oldSettings -Raw) -replace '"silo\.', '"lode.' | ConvertFrom-Json
+            if ($old.dataDir -and $old.dataDir -match 'SiloServer') { $old.PSObject.Properties.Remove('dataDir') }
+            $old | ConvertTo-Json -Depth 10 | Set-Content $settingsPath -Encoding UTF8
+            Set-Content $imported (Get-Date -Format s)
+            Write-Host "    Carried over the Silo Server settings (sources and addresses)."
+        } catch { Remove-Item $settingsPath -ErrorAction SilentlyContinue }
+    }
     if (-not (Test-Path $settingsPath)) { & (Join-Path $target 'LodeServer.exe') init | Out-Null }
     $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
     if ($Lan) { $settings | Add-Member -NotePropertyName listen -NotePropertyValue @("http://*:$Port") -Force }
@@ -197,9 +268,7 @@ try {
         Grant-ServiceLogon $Account
         $password = $cred.GetNetworkCredential().Password
     }
-    $svc = Get-CimInstance Win32_Service -Filter "Name='$ServiceName'"
-    $res = Invoke-CimMethod -InputObject $svc -MethodName Change -Arguments @{ StartName = $(if ($Account -eq 'LocalSystem') { 'LocalSystem' } else { $Account }); StartPassword = $password }
-    if ($res.ReturnValue -ne 0) { throw "Could not set the service account to $Account (Win32_Service.Change returned $($res.ReturnValue)). (LODE-SRV-INST-0009)" }
+    Set-ServiceAccount $ServiceName $Account $password
 
     # Data folder: SYSTEM, Administrators and the service. Program folder and the library: read.
     & icacls.exe $Data /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "${svcId}:(OI)(CI)M" | Out-Null
