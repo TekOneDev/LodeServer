@@ -23,7 +23,7 @@ $Data = Join-Path $env:ProgramData 'LodeServer'
 $ServiceName = 'LodeServer'
 $Port = 47820
 $HttpsPort = 47821
-$Version = '0.2.1'   # build.sh writes the real version here
+$Version = '0.2.2'   # build.sh writes the real version here
 
 function Step($text) { Write-Host "  - $text" -ForegroundColor Cyan }
 
@@ -56,12 +56,12 @@ public static class LodeLsa {
 }
 
 # Sets the account a service runs as through the service manager itself (ChangeServiceConfig), the way sc.exe and
-# services.msc do. 0.2.1: Win32_Service.Change refused NT SERVICE\LodeServer with 22 ("invalid account") on some Windows builds.
+# services.msc do, with a NULL password for virtual and managed accounts (0.2.2). 0.2.1: Win32_Service.Change refused NT SERVICE\LodeServer with 22 ("invalid account") on some Windows builds.
 function Set-ServiceAccount([string]$service, [string]$account, [string]$password) {
-    if (-not ('LodeScm' -as [type])) {
+    if (-not ('LodeScm2' -as [type])) {
         Add-Type -TypeDefinition @'
 using System; using System.Runtime.InteropServices;
-public static class LodeScm {
+public static class LodeScm2 {
   [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)] static extern IntPtr OpenSCManagerW(string m, string d, uint a);
   [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)] static extern IntPtr OpenServiceW(IntPtr h, string n, uint a);
   [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)] static extern bool ChangeServiceConfigW(IntPtr s, uint type, uint start, uint err,
@@ -74,14 +74,22 @@ public static class LodeScm {
     try {
       IntPtr s = OpenServiceW(m, service, 0x0002 | 0x0001);
       if (s == IntPtr.Zero) return Marshal.GetLastWin32Error();
-      try { return ChangeServiceConfigW(s, NoChange, NoChange, NoChange, null, null, IntPtr.Zero, null, account, password, null) ? 0 : Marshal.GetLastWin32Error(); }
+      // Virtual and managed service accounts must get a NULL password; an empty string fails with 1057.
+      // (PowerShell turns $null into "" on the way in, so the empty string is mapped back to NULL here.)
+      string pw = string.IsNullOrEmpty(password) ? null : password;
+      try { return ChangeServiceConfigW(s, NoChange, NoChange, NoChange, null, null, IntPtr.Zero, null, account, pw, null) ? 0 : Marshal.GetLastWin32Error(); }
       finally { CloseServiceHandle(s); }
     } finally { CloseServiceHandle(m); }
   }
 }
 '@
     }
-    $rc = [LodeScm]::SetAccount($service, $account, $password)
+    $rc = [LodeScm2]::SetAccount($service, $account, $password)
+    if ($rc -ne 0 -and -not $password) {
+        # Second way, as Windows' own tool does it (sc.exe passes no password at all).
+        & sc.exe config $service obj= "$account" | Out-Null
+        if ($LASTEXITCODE -eq 0) { $rc = 0 }
+    }
     if ($rc -ne 0) {
         $why = (New-Object ComponentModel.Win32Exception($rc)).Message
         throw "Could not set the service account to $account (Windows answered error ${rc}: $why). (LODE-SRV-INST-0009)"
